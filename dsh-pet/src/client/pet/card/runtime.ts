@@ -204,6 +204,11 @@ export function createCardRuntime(rt: PetRuntime) {
     };
     const setLearningContent = (name: string) => {
       learningContentKeyRef.current = name;
+      // 立即弹一句新内容的台词（给用户即时反馈）
+      if (learningEnabledRef.current) {
+        const lines = learningLines(learningContentsRef.current, learningContentKeyRef.current);
+        bubbles.showKana(randomBubbleLine(lines));
+      }
     };
 
     const ownAnim = useCardAnimation({

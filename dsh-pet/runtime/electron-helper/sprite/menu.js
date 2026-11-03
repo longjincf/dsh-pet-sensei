@@ -203,7 +203,16 @@ Object.assign(PetSprite.prototype, {
       return;
     }
     if (leaf.action === 'select-learning-content') {
-      if (leaf.content) this.learningContentKey = leaf.content;
+      if (leaf.content) {
+        this.learningContentKey = leaf.content;
+        // 立即弹一句新内容的台词（给用户即时反馈）
+        if (this.learningEnabled) {
+          const lines = S.learningLines(this.learningContents, this.learningContentKey);
+          this.kanaText = S.randomBubbleLine(lines);
+          this.kanaOn = true;
+          this.renderBubble();
+        }
+      }
       return;
     }
     if (leaf.action === 'set-learning-order') {

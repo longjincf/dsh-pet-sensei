@@ -81,10 +81,12 @@ export function learningLines(
   return DEFAULT_KANA_LINES;
 }
 
-/** 把单个解析出的对象（`{ 名称: 台词行[] }`）并入内容表。 */
+/** 把单个解析出的对象（`{ 名称: 台词行[] }`）并入内容表；同名时**合并台词行**（不覆盖）。 */
 function mergeLearningObject(map: Record<string, string[]>, obj: Record<string, unknown>): void {
   for (const [k, v] of Object.entries(obj)) {
-    if (Array.isArray(v)) map[k] = v.filter((x): x is string => typeof x === 'string' && x !== '');
+    if (!Array.isArray(v)) continue;
+    const lines = v.filter((x): x is string => typeof x === 'string' && x !== '');
+    map[k] = map[k] ? map[k].concat(lines) : lines;
   }
 }
 
