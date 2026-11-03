@@ -19,7 +19,7 @@ import type * as ReactNS from 'react';
 import type { jsx } from 'react/jsx-runtime';
 
 /** 当前该挂哪个气泡；`none` 表示哪个条件都不成立。 */
-export type BubbleSlot = 'todo' | 'work-terminal' | 'whisper' | 'balance' | 'work' | 'none';
+export type BubbleSlot = 'todo' | 'work-terminal' | 'whisper' | 'balance' | 'work' | 'kana' | 'none';
 
 /** 优先级判定的输入：全部是渲染期的既成事实，判定本身不产生副作用。 */
 export interface BubbleSlotInput {
@@ -37,6 +37,10 @@ export interface BubbleSlotInput {
   whisperOn: boolean;
   /** 说话气泡文本。 */
   whisperText: string | null;
+  /** 台词气泡是否点亮。 */
+  kanaOn: boolean;
+  /** 台词气泡文本。 */
+  kanaText: string | null;
   /** 余额气泡是否点亮。 */
   balanceOn: boolean;
   /** 余额数据是否已拉到；null 表示尚未拉到。 */
@@ -62,6 +66,7 @@ export function decideBubbleSlot(input: BubbleSlotInput): BubbleSlot {
   if (input.whisperOn && input.whisperText) return 'whisper';
   if (input.balanceOn && input.balanceAvailable && (input.balanceEnabled || input.balanceManual)) return 'balance';
   if (input.workOn && input.workText && input.workStatusEnabled) return 'work';
+  if (input.kanaOn && input.kanaText) return 'kana';
   return 'none';
 }
 
@@ -149,6 +154,8 @@ export interface BubbleSlots {
   cycleBalance(): void;
   /** 点亮说话气泡；duration 为 0 时不改动当前气泡，undefined 用默认时长。 */
   showWhisper(text: string, parts: { image?: string; url?: string }, duration?: number): void;
+  /** 点亮台词气泡：常驻不自动收起，直到更高优先级气泡替换它。 */
+  showKana(text: string): void;
   /** 收起说话气泡；不碰动画与另两种气泡。 */
   clearWhisper(): void;
   /** 更新工作气泡文本，显隐不动。 */
@@ -193,6 +200,9 @@ export function createBubbleSlots(rt: BubbleSlotsRuntime, components: BubbleComp
     const [whisperText, setWhisperText] = useState<string | null>(null);
     const [whisperImage, setWhisperImage] = useState<string | undefined>(undefined);
     const [whisperUrl, setWhisperUrl] = useState<string | undefined>(undefined);
+    // 台词气泡：常驻不自动收起，单槽最低优先级。
+    const [kanaOn, setKanaOn] = useState(false);
+    const [kanaText, setKanaText] = useState<string | null>(null);
     const whisperHoldRef = useRef<BubbleHoldState>(BUBBLE_HOLD_IDLE);
     const whisperTextRef = useRef<string | null>(null);
     const whisperTimerRef = useRef<number | null>(null);
@@ -273,6 +283,11 @@ export function createBubbleSlots(rt: BubbleSlotsRuntime, components: BubbleComp
       applyWhisperHold({ durationMs: duration ?? BUBBLE_DURATION_MS, kind: 'show' });
     };
 
+    const showKana = (text: string) => {
+      setKanaText(text);
+      setKanaOn(true);
+    };
+
     const clearWhisper = () => {
       whisperTextRef.current = null;
       setWhisperText(null);
@@ -311,6 +326,8 @@ export function createBubbleSlots(rt: BubbleSlotsRuntime, components: BubbleComp
         workStatusEnabled: input.workStatusEnabled,
         whisperOn,
         whisperText,
+        kanaOn,
+        kanaText,
         balanceOn,
         balanceAvailable: input.balance !== null,
         balanceEnabled: input.balanceEnabled,
@@ -347,6 +364,10 @@ export function createBubbleSlots(rt: BubbleSlotsRuntime, components: BubbleComp
           ...(onClick === undefined ? {} : { onClick }),
         });
       }
+      // 台词气泡：常驻，与说话气泡同款组件（纯文本）。
+      if (slot === 'kana') {
+        return kanaText === null ? null : h(WhisperBubble, { text: kanaText, on: kanaOn });
+      }
       return null;
     };
 
@@ -359,6 +380,7 @@ export function createBubbleSlots(rt: BubbleSlotsRuntime, components: BubbleComp
       node,
       resetWork,
       showBalance,
+      showKana,
       showTodo,
       showWhisper,
       toggleTodo,

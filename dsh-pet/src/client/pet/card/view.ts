@@ -50,6 +50,8 @@ export interface CardViewProps {
   name: string;
   /** 点击命中区。 */
   onClick(e: ReactNS.MouseEvent<HTMLDivElement>): void;
+  /** 双击命中区：查看余额。 */
+  onDoubleClick(e: ReactNS.MouseEvent<HTMLDivElement>): void;
   /** 按下：开启指针捕获与拖拽。 */
   onPointerDown(e: ReactNS.PointerEvent<HTMLDivElement>): void;
   /** 指针移动：拖拽跟随。 */
@@ -107,6 +109,7 @@ export function makeCardView(rt: { h: typeof jsx }) {
               className: 'dsh-pet-hit',
               style: PET_HIT_STYLE,
               onClick: props.onClick,
+              onDoubleClick: props.onDoubleClick,
               onPointerDown: props.onPointerDown,
               onPointerMove: props.onPointerMove,
               onPointerUp: props.onPointerUp,

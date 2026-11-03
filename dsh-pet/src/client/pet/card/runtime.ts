@@ -7,6 +7,7 @@
  */
 import { pick } from '../../../shared/pickers.ts';
 import { postAction } from '../../../shared/state.ts';
+import { KANA_DIALOGUE_CHANCE, randomBubbleLine } from '../../../shared/kana.ts';
 import { ROUTE_PATH } from '../../../shared/constants.ts';
 import { resolveFontPx } from '../../../shared/fonts.ts';
 import { resolvePetSizePx } from '../../../shared/pet-size.ts';
@@ -83,6 +84,31 @@ export function createCardRuntime(rt: PetRuntime) {
     const menuActionsRef = useRef<MenuActions | null>(null);
     const entryRef = useRef<CardEntry | null>(null);
     const pendingSquashRef = useRef(false);
+    // 台词行：从 host 的 learningTxt.txt（GET /learningTxt）读，失败/为空回退内置五十音。
+    const kanaLinesRef = useRef<string[] | null>(null);
+
+    // 拉取台词行（一次；拿不到就留在内置回退）。
+    useEffect(() => {
+      let alive = true;
+      void fetch(ROUTE_PATH + '/learningTxt')
+        .then(async (r) => {
+          if (!r.ok) return null;
+          const t = await r.text();
+          return t
+            .split(/\r?\n/)
+            .map((s) => s.trim())
+            .filter((s) => s !== '');
+        })
+        .then((lines) => {
+          if (alive && lines && lines.length > 0) kanaLinesRef.current = lines;
+        })
+        .catch(() => {
+          /* 拿不到就留在内置回退 */
+        });
+      return () => {
+        alive = false;
+      };
+    }, []);
 
     // 成品配置与工作状态的最新值：回调晚于状态更新，只能读 ref。
     const cfgRef = useRef(cfg);
@@ -132,6 +158,12 @@ export function createCardRuntime(rt: PetRuntime) {
       workSessionId: workStatus?.sessionId ?? null,
       ...(onFocusSession === undefined ? {} : { onFocusSession }),
     });
+
+    // 按概率弹一句台词气泡：内容 = learningTxt.txt 随机一行（回退内置五十音），常驻不自动消失。
+    const showKanaBubble = () => {
+      if (Math.random() >= KANA_DIALOGUE_CHANCE) return;
+      bubbles.showKana(randomBubbleLine(kanaLinesRef.current ?? undefined));
+    };
 
     const ownAnim = useCardAnimation({
       card,
@@ -211,6 +243,7 @@ export function createCardRuntime(rt: PetRuntime) {
       resetPosition: () => actions.setCustomPos(null),
       // 睡觉：菜单在点击那一刻就要能拒绝（对话弹窗、待办面板、动作点播都是纯前端行为，宿主拦不到）
       say: (text) => liveRef.current.flow?.speak(text, undefined, undefined, undefined, false),
+      showKanaBubble,
       locked: () => ownAnim.isFrozen(),
       sleepRefuseTexts: () => cfgRef.current.sleepRefuseTexts ?? [],
       sleeping: () => liveRef.current.flow?.sleeping() ?? false,
@@ -262,6 +295,7 @@ export function createCardRuntime(rt: PetRuntime) {
         menuActions.run({ anim, label: anim }, playbackId, keepFacing, true),
       posFollow: motion.posFollow,
       speak: (text, image, url, duration, anim) => liveRef.current.flow?.speak(text, image, url, duration, anim),
+      showKanaBubble,
       // 睡觉是状态不是指令：自动来源（工作状态/余额/碎碎念）读它决定要不要闭嘴
       sleeping: () => liveRef.current.flow?.sleeping() ?? false,
       // 占用锁：锁的语义是把控制权交给第三方，睡觉的菜单闸门与自动化闸门都对持锁者让路
@@ -315,6 +349,13 @@ export function createCardRuntime(rt: PetRuntime) {
         // 入睡过渡里被点：这次入睡作废，按普通点击处理（挤压 + 音效 + 点击回应），不再播「起来」
         if (phase === 'start') void postAction(ROUTE_PATH + '/wake?pet=' + encodeURIComponent(cfg.id));
         drag.onClick();
+        // 点一下也按概率冒一句台词气泡（与随机链/右键共用 showKanaBubble）
+        showKanaBubble();
+      },
+      // 双击 = 查看余额：与右键菜单「查看余额」同一动作
+      onDoubleClick: () => {
+        console.info('[dsh-pet] 双击查看余额 pet=' + cfg.id);
+        void postAction(ROUTE_PATH + '/balance');
       },
       onContextMenu: entry.handleContextMenu,
       onPointerDown: drag.onPointerDown,

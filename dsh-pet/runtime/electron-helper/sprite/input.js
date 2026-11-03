@@ -407,9 +407,16 @@ Object.assign(PetSprite.prototype, {
     }
     // 点击音效与浏览器同位置：放在「按下已触发积分」的早退之后、点击动画判断之前
     playClickSound();
+    // 点一下也按概率冒一句台词气泡（与随机链/右键共用 showKanaBubble）
+    this.showKanaBubble();
     if (!this.animations.clicks.length) return;
     this.pendingSquash = true; // 等新点击动画切到前台后 Q 弹（压新首帧，与浏览器一致）
     this.playOnce(S.pick(this.animations.clicks));
+  },
+
+  // 双击 = 查看余额：与右键菜单「查看余额」同一动作
+  onDoubleClick() {
+    this.showBalanceFromMenu();
   },
 
   // 右键菜单（统一自绘组件：树与渲染都来自 shared-core 的同一份 menu 模块）

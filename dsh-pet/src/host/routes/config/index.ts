@@ -10,7 +10,7 @@
 import { readAllConfig } from '../../config.ts';
 import { type RouteResult } from '../../http.ts';
 import { join } from 'node:path';
-import { PACKAGE_ROOT } from '../../paths.ts';
+import { maskHome, PACKAGE_ROOT } from '../../paths.ts';
 import { profileNameFrom, storageEntries } from '../../storage-paths.ts';
 import { electronLandingDir } from '../../helper-process.ts';
 import { TODO_FILE_NAME } from '../../todo/store.ts';
@@ -51,23 +51,23 @@ function getConfig(deps: PetRouteDeps): RouteResult {
 function getMeta(deps: PetRouteDeps): RouteResult {
   const { log, memesUserRoot, thumbUserRoot, userConfigPath, userRoot } = deps;
   return okResult({
-    user: userConfigPath,
-    default: join(PACKAGE_ROOT, 'assets', 'config.jsonc'),
-    animations: thumbUserRoot,
-    memes: memesUserRoot,
+    user: maskHome(userConfigPath),
+    default: maskHome(join(PACKAGE_ROOT, 'assets', 'config.jsonc')),
+    animations: maskHome(thumbUserRoot),
+    memes: maskHome(memesUserRoot),
     // 待办数据文件：一份用户级数据（不分宠物），路径与宿主建库时用的是同一个文件名常量。
-    todos: join(userRoot, TODO_FILE_NAME),
+    todos: maskHome(join(userRoot, TODO_FILE_NAME)),
     // 统一日志出口（就是上面那个 logger 的 file：三种模式都落在 $DSH_HOME/dsh-pet/logs.txt）：
     // 桌面版没有控制台，用户反馈「宠物不出现 / 闪退」时只能靠这个文件。
-    logs: log.file,
+    logs: maskHome(log.file),
     // 全部落盘位置（本包用户数据 / Electron 运行时 / 桌面端缓存 / 下载缓存 / 插件本体）：
-    // 前两条直接传真实写入方的路径，不在这里重拼目录名
+    // 前两条直接传真实写入方的路径，不在这里重拼目录名；路径同样 mask 掉用户名
     storage: storageEntries({
       userDataRoot: userRoot,
       electronDir: electronLandingDir(),
       home: homedir(),
       packageRoot: PACKAGE_ROOT,
-    }),
+    }).map((s) => ({ ...s, path: maskHome(s.path) })),
     // profile 名（拼卸载命令 dsh plugin --profile <名> remove dsh-pet；反推不出时为空串）
     profile: profileNameFrom(PACKAGE_ROOT) ?? '',
   });

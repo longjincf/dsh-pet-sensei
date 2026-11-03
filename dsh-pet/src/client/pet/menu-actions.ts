@@ -47,6 +47,8 @@ export interface MenuActionDeps {
   locked?: () => boolean;
   /** 弹一句气泡（拒绝台词用，不换动画）。缺省 = 不弹。 */
   say?: (text: string) => void;
+  /** 按概率弹一句台词气泡（右键点播动画时用）。缺省 = 不弹。 */
+  showKanaBubble?: () => void;
   /** 睡觉拒绝台词池（条目级配置）。缺省 = 静默拒绝，不弹文字。 */
   sleepRefuseTexts?: () => string[];
 }
@@ -177,6 +179,8 @@ export function createMenuActions(deps: MenuActionDeps): MenuActions {
       return;
     }
     if (!leaf.anim) return;
+    // 右键动画点播也按概率冒一句台词气泡（与随机链/点击共用）
+    deps.showKanaBubble?.();
     const cuePlaybackId = playbackId ?? null;
     // 文字类朝右站姿是镜像的，点播前强制朝左；keepFacing 时跳过，显式朝向优先。
     if (!keepFacing && isNoMirrorAnimation(deps.animations().categories, leaf.anim) && deps.isFacingRight()) {

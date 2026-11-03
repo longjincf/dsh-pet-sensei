@@ -148,6 +148,8 @@ Object.assign(PetSprite.prototype, {
       return;
     }
     if (!leaf.anim) return;
+    // 右键动画点播也按概率冒一句台词气泡（与随机链/点击共用）
+    this.showKanaBubble();
     // 回执归属：这一段若来自第三方点播，编号跟着换源走（自播动画传 null）
     const playbackId = typeof leaf.playbackId === 'string' && leaf.playbackId ? leaf.playbackId : null;
     // 文字类（noMirror）朝右是镜像的：点播前强制朝左，避免文字镜像。keepFacing 时跳过（显式值优先）。

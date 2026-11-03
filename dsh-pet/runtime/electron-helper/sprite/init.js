@@ -89,6 +89,22 @@ Object.assign(PetSprite.prototype, {
     this.whisperImage = '';
     // 配图地址（与 whisperImage 二选一）：两种形态由字段名区分，不靠嗅探。
     this.whisperUrl = '';
+    // 台词气泡：单槽最低优先级、常驻不自动消失；kanaLines 从 host 的 learningTxt.txt 读。
+    this.kanaOn = false;
+    this.kanaText = '';
+    this.kanaLines = null;
+    fetch(BASE + '/learningTxt')
+      .then(async (r) => {
+        if (!r.ok) return null;
+        const t = await r.text();
+        return t.split(/\r?\n/).map((s) => s.trim()).filter((s) => s !== '');
+      })
+      .then((lines) => {
+        if (lines && lines.length > 0) this.kanaLines = lines;
+      })
+      .catch(() => {
+        /* 回退内置 */
+      });
     // 工作状态联动：容器每秒轮询递增 workTick → 本宠物按档位播动画与气泡，未启用时完全免疫。
     // 气泡单槽优先级：终态任务 > whisper > balance > 非终态任务（见 renderBubble）。
     this.workOn = false;
@@ -204,6 +220,7 @@ Object.assign(PetSprite.prototype, {
     this.hit.addEventListener('pointerdown', (e) => this.onPointerDown(e), { signal: ac.signal });
     this.hit.addEventListener('pointermove', (e) => this.onPointerMove(e), { signal: ac.signal });
     this.hit.addEventListener('click', (e) => this.onClick(e), { signal: ac.signal });
+    this.hit.addEventListener('dblclick', (e) => this.onDoubleClick(e), { signal: ac.signal });
     this.hit.addEventListener('contextmenu', (e) => this.onContextMenu(e), { signal: ac.signal });
     window.addEventListener('pointerup', (e) => this.onPointerUp(e), { signal: ac.signal });
     window.addEventListener('pointercancel', (e) => this.onPointerUp(e), { signal: ac.signal });
