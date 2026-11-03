@@ -7,7 +7,7 @@
  */
 import { pick } from '../../../shared/pickers.ts';
 import { postAction } from '../../../shared/state.ts';
-import { KANA_DIALOGUE_CHANCE, randomBubbleLine } from '../../../shared/kana.ts';
+import { cycleBubbleLine, KANA_DIALOGUE_CHANCE, learningLines, parseLearningContents, randomBubbleLine, type LearningOrder } from '../../../shared/kana.ts';
 import { ROUTE_PATH } from '../../../shared/constants.ts';
 import { resolveFontPx } from '../../../shared/fonts.ts';
 import { resolvePetSizePx } from '../../../shared/pet-size.ts';
@@ -84,30 +84,40 @@ export function createCardRuntime(rt: PetRuntime) {
     const menuActionsRef = useRef<MenuActions | null>(null);
     const entryRef = useRef<CardEntry | null>(null);
     const pendingSquashRef = useRef(false);
-    // 台词行：从 host 的 learningTxt.txt（GET /learningTxt）读，失败/为空回退内置五十音。
-    const kanaLinesRef = useRef<string[] | null>(null);
+    // 台词内容表：从 host 的 learningTxt.json（GET /learningTxt）读，`{ 名称: [台词行...] }`；失败回退内置五十音。
+    const learningContentsRef = useRef<Record<string, string[]> | null>(null);
+    // 当前选中的内容名（右键「编辑台词」菜单切换）。
+    const learningContentKeyRef = useRef<string>('五十音');
+    // 台词模式开关与顺序（会话级，右键菜单切换）
+    const learningEnabledRef = useRef(true);
+    const learningOrderRef = useRef<LearningOrder>('random');
+    const learningIndexRef = useRef(0);
+    // 台词优先级（高 = 压过所有气泡；低 = 被任务/余额/碎碎念打断）
+    const [learningPriority, setLearningPriorityState] = useState<'high' | 'low'>('low');
 
-    // 拉取台词行（一次；拿不到就留在内置回退）。
+    // 拉取台词内容表（`{ 名称: [台词行...] }`）；拿不到/解析失败留在当前或内置回退。
+    const refreshLearningContents = async (): Promise<void> => {
+      try {
+        const r = await fetch(ROUTE_PATH + '/learningTxt', { cache: 'no-store' });
+        if (!r.ok) return;
+        const t = await r.text();
+        const map = parseLearningContents(t);
+        if (!map) return;
+        learningContentsRef.current = map;
+        const keys = Object.keys(map);
+        // 当前选中的内容被删了才改选（优先「五十音」，否则第一个）；否则保留用户选择。
+        if (!keys.includes(learningContentKeyRef.current)) {
+          learningContentKeyRef.current = keys.includes('五十音') ? '五十音' : keys[0];
+        }
+      } catch {
+        /* 拿不到就留在当前回退 */
+      }
+    };
+
+    // 启动拉一次；此后每次右键菜单打开前都会再拉一次，保证编辑 json 后实时可见。
     useEffect(() => {
-      let alive = true;
-      void fetch(ROUTE_PATH + '/learningTxt')
-        .then(async (r) => {
-          if (!r.ok) return null;
-          const t = await r.text();
-          return t
-            .split(/\r?\n/)
-            .map((s) => s.trim())
-            .filter((s) => s !== '');
-        })
-        .then((lines) => {
-          if (alive && lines && lines.length > 0) kanaLinesRef.current = lines;
-        })
-        .catch(() => {
-          /* 拿不到就留在内置回退 */
-        });
-      return () => {
-        alive = false;
-      };
+      void refreshLearningContents();
+      // eslint-disable-next-line react-hooks/exhaustive-deps -- 只启动拉一次
     }, []);
 
     // 成品配置与工作状态的最新值：回调晚于状态更新，只能读 ref。
@@ -153,16 +163,47 @@ export function createCardRuntime(rt: PetRuntime) {
       balance,
       balanceEnabled: cfg.balanceEnabled,
       balanceManual,
+      kanaPriorityHigh: learningPriority === 'high',
       workStatusEnabled: cfg.workStatusEnabled,
       workTerminal: workStatus?.state === 'success' || workStatus?.state === 'error',
       workSessionId: workStatus?.sessionId ?? null,
       ...(onFocusSession === undefined ? {} : { onFocusSession }),
     });
 
-    // 按概率弹一句台词气泡：内容 = learningTxt.txt 随机一行（回退内置五十音），常驻不自动消失。
+    // 按概率弹一句台词气泡：内容 = 当前选中的内容组（乱序或顺序循环），常驻不自动消失。
     const showKanaBubble = () => {
+      if (!learningEnabledRef.current) return;
       if (Math.random() >= KANA_DIALOGUE_CHANCE) return;
-      bubbles.showKana(randomBubbleLine(kanaLinesRef.current ?? undefined));
+      const lines = learningLines(learningContentsRef.current, learningContentKeyRef.current);
+      let text: string;
+      if (learningOrderRef.current === 'cycle' && lines.length > 0) {
+        const r = cycleBubbleLine(lines, learningIndexRef.current);
+        text = r.line;
+        learningIndexRef.current = r.next;
+      } else {
+        text = randomBubbleLine(lines);
+      }
+      bubbles.showKana(text);
+    };
+    // 右键「自定义台词」开关、顺序、优先级与内容切换
+    const toggleLearning = () => {
+      learningEnabledRef.current = !learningEnabledRef.current;
+      if (learningEnabledRef.current) {
+        // 立即弹一句（绕过概率，给用户即时反馈）
+        const lines = learningLines(learningContentsRef.current, learningContentKeyRef.current);
+        bubbles.showKana(randomBubbleLine(lines));
+      } else {
+        bubbles.clearKana();
+      }
+    };
+    const setLearningOrder = (order: LearningOrder) => {
+      learningOrderRef.current = order;
+    };
+    const setLearningPriority = (priority: 'high' | 'low') => {
+      setLearningPriorityState(priority);
+    };
+    const setLearningContent = (name: string) => {
+      learningContentKeyRef.current = name;
     };
 
     const ownAnim = useCardAnimation({
@@ -222,6 +263,15 @@ export function createCardRuntime(rt: PetRuntime) {
       stage: () => stageRef.current,
       tipRef,
       toggleTodo: bubbles.toggleTodo,
+      learningEnabled: () => learningEnabledRef.current,
+      learningOrder: () => learningOrderRef.current,
+      learningPriority: () => learningPriority,
+      learningContentNames: () => {
+        const keys = Object.keys(learningContentsRef.current ?? {});
+        return keys.length > 0 ? keys : ['五十音'];
+      },
+      learningContentKey: () => learningContentKeyRef.current,
+      refreshLearningContents,
     });
     entryRef.current = entry;
 
@@ -244,6 +294,10 @@ export function createCardRuntime(rt: PetRuntime) {
       // 睡觉：菜单在点击那一刻就要能拒绝（对话弹窗、待办面板、动作点播都是纯前端行为，宿主拦不到）
       say: (text) => liveRef.current.flow?.speak(text, undefined, undefined, undefined, false),
       showKanaBubble,
+      toggleLearning,
+      setLearningOrder,
+      setLearningPriority,
+      setLearningContent,
       locked: () => ownAnim.isFrozen(),
       sleepRefuseTexts: () => cfgRef.current.sleepRefuseTexts ?? [],
       sleeping: () => liveRef.current.flow?.sleeping() ?? false,

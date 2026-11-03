@@ -1,5 +1,5 @@
 /**
- * 台词文件路由：GET /learningTxt 读项目根目录 learningTxt.txt（一行一条），
+ * 台词文件路由：GET /learningTxt 读项目根目录 learningTxt.json（一行一条），
  * POST /learningTxt 用系统默认编辑器打开它（设置页「打开台词文件」按钮）。
  *
  * 浏览器 / 桌面端从 GET 拉取后随机抽行显示；文件缺失回 404（客户端回退内置五十音）。

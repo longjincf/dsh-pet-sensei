@@ -94,7 +94,7 @@ export const en: Record<Key, string> = {
   marginX: 'Horizontal offset',
   marginY: 'Vertical offset',
   save: 'Save',
-  openLearningTxt: 'Open learningTxt.txt',
+  openLearningTxt: 'Open learningTxt.json',
   learningTitle: 'Dialogue lines',
   saveHotkey: 'Ctrl+S / Cmd+S',
   sync: 'Sync',

@@ -18,8 +18,8 @@ export const PACKAGE_ROOT_ASSETS = join(PACKAGE_ROOT, 'assets');
 /** 包内表情包目录（表情包池的最后一环：assets/memes/<名称>.png） */
 export const PACKAGE_MEMES_DIR = join(PACKAGE_ROOT_ASSETS, 'memes');
 
-/** 台词文件：项目根目录 learningTxt.txt，一行一条，气泡随机抽一行显示。 */
-export const LEARNING_TXT_PATH = join(PACKAGE_ROOT, 'learningTxt.txt');
+/** 台词文件：项目根目录 learningTxt.json，`{ 名称: [台词行...] }`，多组内容可切换。 */
+export const LEARNING_TXT_PATH = join(PACKAGE_ROOT, 'learningTxt.json');
 
 /** 把 home 目录前缀换成 ~，避免设置页把真实用户名（开盒）显示出来。 */
 export function maskHome(p: string): string {

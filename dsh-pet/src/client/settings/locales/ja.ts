@@ -94,7 +94,7 @@ export const ja: Record<Key, string> = {
   marginX: '水平オフセット',
   marginY: '垂直オフセット',
   save: '保存',
-  openLearningTxt: 'Open learningTxt.txt',
+  openLearningTxt: 'Open learningTxt.json',
   learningTitle: 'Dialogue lines',
   saveHotkey: 'Ctrl+S / Cmd+S',
   sync: '同期',

@@ -49,6 +49,14 @@ export interface MenuActionDeps {
   say?: (text: string) => void;
   /** 按概率弹一句台词气泡（右键点播动画时用）。缺省 = 不弹。 */
   showKanaBubble?: () => void;
+  /** 切换台词模式开/关。缺省 = 无操作。 */
+  toggleLearning?: () => void;
+  /** 设置台词顺序（乱序/顺序循环）。缺省 = 无操作。 */
+  setLearningOrder?: (order: 'random' | 'cycle') => void;
+  /** 设置台词优先级（高/低）。缺省 = 无操作。 */
+  setLearningPriority?: (priority: 'high' | 'low') => void;
+  /** 切换当前台词内容组（learningTxt.json 的键）。缺省 = 无操作。 */
+  setLearningContent?: (name: string) => void;
   /** 睡觉拒绝台词池（条目级配置）。缺省 = 静默拒绝，不弹文字。 */
   sleepRefuseTexts?: () => string[];
 }
@@ -176,6 +184,27 @@ export function createMenuActions(deps: MenuActionDeps): MenuActions {
       deps.stopThrow();
       deps.stopMove();
       deps.resetPosition();
+      return;
+    }
+    if (leaf.action === 'toggle-learning') {
+      deps.toggleLearning?.();
+      return;
+    }
+    if (leaf.action === 'edit-learning') {
+      // 在系统默认编辑器打开 learningTxt.json（host POST /learningTxt 用 OS 打开命令）
+      void fetch(ROUTE_PATH + '/learningTxt', { method: 'POST' }).catch(() => {});
+      return;
+    }
+    if (leaf.action === 'select-learning-content') {
+      if (leaf.content) deps.setLearningContent?.(leaf.content);
+      return;
+    }
+    if (leaf.action === 'set-learning-order') {
+      deps.setLearningOrder?.(leaf.order ?? 'random');
+      return;
+    }
+    if (leaf.action === 'set-learning-priority') {
+      deps.setLearningPriority?.(leaf.priority ?? 'low');
       return;
     }
     if (!leaf.anim) return;

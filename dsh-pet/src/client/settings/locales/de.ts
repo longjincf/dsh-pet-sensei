@@ -94,7 +94,7 @@ export const de: Record<Key, string> = {
   marginX: 'Horizontaler Versatz',
   marginY: 'Vertikaler Versatz',
   save: 'Speichern',
-  openLearningTxt: 'Open learningTxt.txt',
+  openLearningTxt: 'Open learningTxt.json',
   learningTitle: 'Dialogue lines',
   saveHotkey: 'Ctrl+S / Cmd+S',
   sync: 'Synchronisieren',

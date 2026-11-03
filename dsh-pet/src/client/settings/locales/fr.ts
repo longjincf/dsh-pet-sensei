@@ -95,7 +95,7 @@ export const fr: Record<Key, string> = {
   marginX: 'Décalage horizontal',
   marginY: 'Décalage vertical',
   save: 'Enregistrer',
-  openLearningTxt: 'Open learningTxt.txt',
+  openLearningTxt: 'Open learningTxt.json',
   learningTitle: 'Dialogue lines',
   saveHotkey: 'Ctrl+S / Cmd+S',
   sync: 'Synchroniser',

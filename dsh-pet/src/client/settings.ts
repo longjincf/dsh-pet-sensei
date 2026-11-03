@@ -372,7 +372,7 @@ export function makePetConfigSection(
               type: 'button',
               className: 'dsh-pet-cfg__btn is-sm',
               onClick: () => {
-                // 在系统默认编辑器打开 learningTxt.txt（host POST /learningTxt 用 OS 打开命令）
+                // 在系统默认编辑器打开 learningTxt.json（host POST /learningTxt 用 OS 打开命令）
                 void fetch(ROUTE_PATH + '/learningTxt', { method: 'POST' }).catch(() => {});
               },
               children: t('openLearningTxt'),

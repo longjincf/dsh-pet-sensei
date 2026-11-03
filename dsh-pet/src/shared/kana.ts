@@ -46,11 +46,88 @@ export const DEFAULT_KANA_LINES: string[] = KANA_ROWS.map((e) => `${e.char} ${e.
 
 /**
  * 从**外部台词行**里随机抽一行；空/缺省回退到内置五十音。
- * 行来自项目根目录的 learningTxt.txt（host 经 GET /learningTxt 提供），可整行替换成任意内容。
+ * 行来自项目根目录的 learningTxt.json（host 经 GET /learningTxt 提供），可整行替换成任意内容。
  */
 export function randomBubbleLine(lines?: string[]): string {
   const pool = lines && lines.length > 0 ? lines : DEFAULT_KANA_LINES;
   return pool[Math.floor(Math.random() * pool.length)];
+}
+
+/** 台词顺序：乱序随机 / 顺序循环。 */
+export type LearningOrder = 'random' | 'cycle';
+
+/**
+ * 顺序循环：取 index 指向的那一行，next 回绕到 0（lines 空/缺省回退内置五十音）。
+ * 配合调用方持有的索引推进，实现「一遍遍按顺序播、播完回到开头」。
+ */
+export function cycleBubbleLine(lines: string[] | undefined, index: number): { line: string; next: number } {
+  const pool = lines && lines.length > 0 ? lines : DEFAULT_KANA_LINES;
+  const i = ((index % pool.length) + pool.length) % pool.length;
+  return { line: pool[i], next: (i + 1) % pool.length };
+}
+
+/** 内置默认内容表（外部 learningTxt.json 缺失/解析失败时的回退）：名称 → 台词行。 */
+export const DEFAULT_LEARNING_CONTENTS: Record<string, string[]> = { 五十音: DEFAULT_KANA_LINES };
+
+/**
+ * 从内容表取指定名称的台词行；表/名称缺失或为空时回退内置五十音。
+ * 内容表来自 learningTxt.json（`{ 名称: [台词行...] }`，host 经 GET /learningTxt 提供）。
+ */
+export function learningLines(
+  contents: Record<string, string[]> | null | undefined,
+  name: string | null | undefined,
+): string[] {
+  if (contents && name && Array.isArray(contents[name]) && contents[name].length > 0) return contents[name];
+  return DEFAULT_KANA_LINES;
+}
+
+/** 把单个解析出的对象（`{ 名称: 台词行[] }`）并入内容表。 */
+function mergeLearningObject(map: Record<string, string[]>, obj: Record<string, unknown>): void {
+  for (const [k, v] of Object.entries(obj)) {
+    if (Array.isArray(v)) map[k] = v.filter((x): x is string => typeof x === 'string' && x !== '');
+  }
+}
+
+/**
+ * 解析台词内容表文本。容忍「单个对象」与「多个顶层对象拼接」两种写法——
+ * 用户常直接往文件末尾追加 `{ "名称": [...] }`，严格 JSON.parse 会因多顶层对象报错。
+ */
+export function parseLearningContents(text: string): Record<string, string[]> | null {
+  const map: Record<string, string[]> = {};
+  const n = text.length;
+  let idx = 0;
+  let parsedAny = false;
+  while (idx < n) {
+    const start = text.indexOf('{', idx);
+    if (start === -1) break;
+    let depth = 0;
+    let end = -1;
+    let inStr = false;
+    for (let i = start; i < n; i++) {
+      const ch = text[i];
+      if (ch === '"') inStr = !inStr;
+      else if (!inStr && ch === '{') depth++;
+      else if (!inStr && ch === '}') {
+        depth--;
+        if (depth === 0) {
+          end = i;
+          break;
+        }
+      }
+    }
+    if (end === -1) break;
+    try {
+      const obj = JSON.parse(text.slice(start, end + 1)) as unknown;
+      if (obj && typeof obj === 'object' && !Array.isArray(obj)) {
+        mergeLearningObject(map, obj as Record<string, unknown>);
+        parsedAny = true;
+      }
+    } catch {
+      /* 跳过坏块 */
+    }
+    idx = end + 1;
+  }
+  return parsedAny && Object.keys(map).length > 0 ? map : null;
 }
 
 /** 弹五十音对话的概率（0~1）。0 = 关闭；1 = 每次都弹。随机链/右键/点击三处共用。 */

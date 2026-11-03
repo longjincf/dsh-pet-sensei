@@ -41,6 +41,8 @@ export interface BubbleSlotInput {
   kanaOn: boolean;
   /** 台词气泡文本。 */
   kanaText: string | null;
+  /** 台词气泡是否设为高优先级（压过所有气泡与待办面板）。 */
+  kanaPriorityHigh: boolean;
   /** 余额气泡是否点亮。 */
   balanceOn: boolean;
   /** 余额数据是否已拉到；null 表示尚未拉到。 */
@@ -60,6 +62,8 @@ export interface BubbleSlotInput {
  * @returns 命中的槽位；都不成立时为 `none`。
  */
 export function decideBubbleSlot(input: BubbleSlotInput): BubbleSlot {
+  // 高优先级台词：压过所有（含待办面板）
+  if (input.kanaPriorityHigh && input.kanaOn && input.kanaText) return 'kana';
   // 面板是用户主动打开的窗口：它占槽时其余气泡一律让位，关掉后按原规则恢复。
   if (input.todoOn) return 'todo';
   if (input.workTerminal && input.workOn && input.workText && input.workStatusEnabled) return 'work-terminal';
@@ -144,6 +148,8 @@ export interface BubbleSlotsInput {
   onFocusSession?: (sessionId: string) => void;
   /** 说话气泡配图的素材根。 */
   assetRoot?: string;
+  /** 台词气泡是否设为高优先级（压过所有气泡与待办面板）。 */
+  kanaPriorityHigh?: boolean;
 }
 
 /** 气泡单槽对外的读写面。 */
@@ -156,6 +162,8 @@ export interface BubbleSlots {
   showWhisper(text: string, parts: { image?: string; url?: string }, duration?: number): void;
   /** 点亮台词气泡：常驻不自动收起，直到更高优先级气泡替换它。 */
   showKana(text: string): void;
+  /** 收起台词气泡（关掉自定义台词时用）。 */
+  clearKana(): void;
   /** 收起说话气泡；不碰动画与另两种气泡。 */
   clearWhisper(): void;
   /** 更新工作气泡文本，显隐不动。 */
@@ -288,6 +296,11 @@ export function createBubbleSlots(rt: BubbleSlotsRuntime, components: BubbleComp
       setKanaOn(true);
     };
 
+    const clearKana = () => {
+      setKanaOn(false);
+      setKanaText(null);
+    };
+
     const clearWhisper = () => {
       whisperTextRef.current = null;
       setWhisperText(null);
@@ -328,6 +341,7 @@ export function createBubbleSlots(rt: BubbleSlotsRuntime, components: BubbleComp
         whisperText,
         kanaOn,
         kanaText,
+        kanaPriorityHigh: input.kanaPriorityHigh === true,
         balanceOn,
         balanceAvailable: input.balance !== null,
         balanceEnabled: input.balanceEnabled,
@@ -372,6 +386,7 @@ export function createBubbleSlots(rt: BubbleSlotsRuntime, components: BubbleComp
     };
 
     return {
+      clearKana,
       clearWhisper,
       cycleBalance,
       hideTodo,

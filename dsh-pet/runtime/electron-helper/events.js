@@ -222,10 +222,19 @@ PetSprite.prototype.showWhisper = function showWhisper(text, image, url, duratio
   this.applyWhisperHold({ durationMs: duration ?? BUBBLE_DURATION_MS, kind: 'show' });
 };
 
-// 台词气泡：弹 learningTxt.txt 随机一行（回退内置五十音），常驻不自动消失，单槽最低优先级。
+// 台词气泡：弹当前选中内容组（乱序或顺序循环），常驻不自动消失，单槽最低优先级。
 PetSprite.prototype.showKanaBubble = function showKanaBubble() {
+  if (!this.learningEnabled) return;
   if (Math.random() >= S.KANA_DIALOGUE_CHANCE) return;
-  const text = S.randomBubbleLine(this.kanaLines);
+  const lines = S.learningLines(this.learningContents, this.learningContentKey);
+  let text;
+  if (this.learningOrder === 'cycle' && lines.length > 0) {
+    const r = S.cycleBubbleLine(lines, this.learningIndex);
+    text = r.line;
+    this.learningIndex = r.next;
+  } else {
+    text = S.randomBubbleLine(lines);
+  }
   this.kanaText = text;
   this.kanaOn = true;
   this.renderBubble();
