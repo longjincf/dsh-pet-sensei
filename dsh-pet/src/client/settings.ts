@@ -251,6 +251,9 @@ export const zh = {
   marginX: '水平偏移',
   marginY: '垂直偏移',
   save: '保存',
+  openLearningTxt: '打开台词文件',
+  learningTitle: '台词文件',
+  learningHint: '气泡随机显示的台词，一行一条，来自项目根目录的 learningTxt.txt。',
   saveHotkey: 'Ctrl+S / Cmd+S',
   sync: '同步',
   confirmSync: '确定同步吗？将用项目内置的默认配置（完整字段 + 注释）覆盖用户配置，当前的自定义内容会丢失。',
@@ -429,6 +432,9 @@ export const en = {
   marginX: 'Horizontal offset',
   marginY: 'Vertical offset',
   save: 'Save',
+  openLearningTxt: 'Open learningTxt.txt',
+  learningTitle: 'Dialogue lines',
+  learningHint: 'The random bubble lines, one per line, from learningTxt.txt at the project root.',
   saveHotkey: 'Ctrl+S / Cmd+S',
   sync: 'Sync',
   confirmSync:
@@ -1461,6 +1467,22 @@ export function makePetConfigSection(rt: {
           children: [
             t('nav'),
             q(extraCount > 0 ? t('intro') + '\n' + t('extraPetsHint').replace('{n}', String(extraCount)) : t('intro')),
+          ],
+        }),
+
+        // 台词文件：快捷入口放在最顶上，一眼能找到（气泡随机显示这里每一行）
+        h('div', {
+          className: 'dsh-pet-cfg__card',
+          children: [
+            cardHead(t('learningTitle'), t('learningHint')),
+            h('button', {
+              type: 'button',
+              className: 'dsh-pet-cfg__btn is-sm',
+              onClick: () => {
+                void fetch('/dsh-pet-7340/learningTxt', { method: 'POST' }).catch(() => {});
+              },
+              children: t('openLearningTxt'),
+            }),
           ],
         }),
 

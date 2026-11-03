@@ -95,6 +95,7 @@
  */
 import { createReadStream, existsSync, fstatSync, readFileSync } from 'node:fs';
 import { readFile, mkdir, writeFile } from 'node:fs/promises';
+import { spawn } from 'node:child_process';
 import type { IncomingMessage, ServerResponse } from 'node:http';
 import { homedir } from 'node:os';
 import { join, normalize, resolve, sep } from 'node:path';
@@ -182,6 +183,12 @@ const PACKAGE_ROOT_ASSETS = join(PACKAGE_ROOT, 'assets');
 
 /** 包内表情包目录（表情包池的最后一环：assets/memes/<名称>.png） */
 const PACKAGE_MEMES_DIR = join(PACKAGE_ROOT_ASSETS, 'memes');
+
+/** 把 home 目录前缀换成 ~，避免设置页把真实用户名（开盒）显示出来。 */
+const maskHome = (p: string): string => {
+  const home = homedir();
+  return home && (p === home || p.startsWith(home + sep)) ? '~' + p.slice(home.length) : p;
+};
 
 /** 路由前缀 */
 const ROUTE_PREFIX = '/dsh-pet-7340';
@@ -1232,6 +1239,28 @@ export function apply(ctx: any): void {
       return { kind: 'json', status: 405, obj: { error: 'method not allowed' } };
     }
 
+    // 气泡台词行：GET /dsh-pet-7340/learningTxt 读项目根目录的 learningTxt.txt（一行一条），
+    // POST 在系统默认编辑器打开它（设置页「打开台词文件」按钮）。GET 文件缺失回 404（客户端回退内置五十音）。
+    if (rest === 'learningTxt') {
+      if (method === 'GET') {
+        const file = join(PACKAGE_ROOT, 'learningTxt.txt');
+        try {
+          const body = await readFile(file, 'utf8');
+          return { kind: 'text', status: 200, body };
+        } catch {
+          return { kind: 'text', status: 404, body: '' };
+        }
+      }
+      if (method === 'POST') {
+        const file = join(PACKAGE_ROOT, 'learningTxt.txt');
+        const cmd = process.platform === 'win32' ? 'cmd' : process.platform === 'darwin' ? 'open' : 'xdg-open';
+        const args = process.platform === 'win32' ? ['/c', 'start', '', file] : [file];
+        spawn(cmd, args, { detached: true, stdio: 'ignore' }).unref();
+        return { kind: 'json', status: 200, obj: { ok: true } };
+      }
+      return { kind: 'json', status: 405, obj: { error: 'method not allowed' } };
+    }
+
     // 单只宠物的显示位置（桌面端右键「关闭桌面显示」→ POST /pet-display）。
     // 高频操作，故只收 id + display 两个参数，不要求调用方回传整段 pets（那是 PUT /config 的形态：
     // 客户端做读-改-写既容易误伤同层其它宠物，也拿不准该写哪一层）。
@@ -1339,18 +1368,18 @@ export function apply(ctx: any): void {
         kind: 'json',
         status: 200,
         obj: {
-          user: userConfigPath,
-          default: join(PACKAGE_ROOT, 'assets', 'config.jsonc'),
-          animations: thumbUserRoot,
-          memes: memesUserRoot,
+          user: maskHome(userConfigPath),
+          default: maskHome(join(PACKAGE_ROOT, 'assets', 'config.jsonc')),
+          animations: maskHome(thumbUserRoot),
+          memes: maskHome(memesUserRoot),
           // 全部落盘位置（本包用户数据 / Electron 运行时 / 桌面端缓存 / 下载缓存 / 插件本体）：
-          // 前两条直接传真实写入方的路径，不在这里重拼目录名
+          // 前两条直接传真实写入方的路径，不在这里重拼目录名；路径同样 mask 掉用户名
           storage: storageEntries({
             userDataRoot: userRoot,
             electronDir: electronLandingDir(),
             home: homedir(),
             packageRoot: PACKAGE_ROOT,
-          }),
+          }).map((s) => ({ ...s, path: maskHome(s.path) })),
           // profile 名（拼卸载命令 dsh plugin --profile <名> remove dsh-pet；反推不出时为空串）
           profile: profileNameFrom(PACKAGE_ROOT) ?? '',
         },

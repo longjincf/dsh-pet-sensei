@@ -144,6 +144,23 @@ class PetSprite {
     // 配图**地址**（POST /broadcast 的 url 参数；与 whisperImage 二选一，见 showWhisper）。
     // 两种形态由字段名区分，不靠嗅探——地址形态直接用、名称形态才按素材根拼路径。
     this.whisperUrl = '';
+    // 五十音小课堂气泡：单槽最低优先级（让位余额/碎碎念/工作状态），常驻不自动消失
+    this.kanaOn = false;
+    this.kanaText = '';
+    // 从 host 的 learningTxt.txt（GET /learningTxt）读到的台词行；null/空 = 回退内置五十音
+    this.kanaLines = null;
+    fetch(BASE + '/learningTxt')
+      .then(async (r) => {
+        if (!r.ok) return null;
+        const t = await r.text();
+        return t.split(/\r?\n/).map((s) => s.trim()).filter((s) => s !== '');
+      })
+      .then((lines) => {
+        if (lines && lines.length > 0) this.kanaLines = lines;
+      })
+      .catch(() => {
+        /* 回退内置 */
+      });
     // 工作状态联动（DSH 会话状态）：容器 1s 轮询 /state 递增 workTick → 本宠物按档位播动画+气泡。
     // 气泡单槽优先级 终态任务 > whisper > balance > 非终态任务（见 renderBubble）；
     // workStatusEnabled 未启用时完全免疫（与浏览器一致）
@@ -231,6 +248,7 @@ class PetSprite {
     this.hit.addEventListener('pointerdown', (e) => this.onPointerDown(e), { signal: ac.signal });
     this.hit.addEventListener('pointermove', (e) => this.onPointerMove(e), { signal: ac.signal });
     this.hit.addEventListener('click', (e) => this.onClick(e), { signal: ac.signal });
+    this.hit.addEventListener('dblclick', (e) => this.onDoubleClick(e), { signal: ac.signal });
     this.hit.addEventListener('contextmenu', (e) => this.onContextMenu(e), { signal: ac.signal });
     window.addEventListener('pointerup', (e) => this.onPointerUp(e), { signal: ac.signal });
     window.addEventListener('pointercancel', (e) => this.onPointerUp(e), { signal: ac.signal });
@@ -696,6 +714,8 @@ class PetSprite {
       const act = S.pickCategoryAction(animations.categories, animations.idle, this.facing, this.anim);
       next = act.name;
     }
+    // 日语五十音小课堂：随机链按概率弹一句「假名 + 罗马音」（不换动画、只说话）
+    this.showKanaBubble();
     this.playOnce(next);
   }
 
@@ -1583,9 +1603,16 @@ class PetSprite {
     }
     this.stopThrow(); // 点击飞行中的宠物 = 收手停住（再播点击回应）
     this.stopMove();
+    // 点一下就冒一句五十音对话气泡（与随机链/右键共用 showKanaBubble）
+    this.showKanaBubble();
     if (!this.animations.clicks.length) return;
     this.pendingSquash = true; // 等新点击动画切到前台后 Q 弹（压新首帧，与浏览器一致）
     this.playOnce(S.pick(this.animations.clicks));
+  }
+
+  // 双击查余额：与右键菜单「查看余额」同一动作（showBalanceFromMenu → POST /balance）
+  onDoubleClick() {
+    this.showBalanceFromMenu();
   }
 
   // ---- 右键菜单（统一自绘组件：树+渲染都来自 shared-core 的同一份 menu 模块） ----
@@ -1721,6 +1748,8 @@ class PetSprite {
       return;
     }
     if (!leaf.anim) return;
+    // 右键动画点播同样触发五十音对话（与随机链共用 showKanaBubble 与概率）
+    this.showKanaBubble();
     // 回执归属：这一段动画若来自第三方点播，编号要跟着换源一起走（自播动画传 null）
     const playbackId = typeof leaf.playbackId === 'string' && leaf.playbackId ? leaf.playbackId : null;
     // 文字类（noMirror）朝右站姿是镜像的：点播前强制朝左，避免文字镜像（与浏览器随机链"朝右不选文字"同语义）。
@@ -1871,9 +1900,20 @@ class PetSprite {
     const workOn = !!(this.workOn && this.workText);
     const whisperOn = !!(this.whisperOn && this.whisperView);
     const balanceOn = !!(this.bubbleOn && this.balanceView);
+    const kanaOn = !!(this.kanaOn && this.kanaText);
     const workTerminal = this.workState === 'success' || this.workState === 'error';
     const slot =
-      workTerminal && workOn ? 'work' : whisperOn ? 'whisper' : balanceOn ? 'balance' : workOn ? 'work' : 'none';
+      workTerminal && workOn
+        ? 'work'
+        : whisperOn
+          ? 'whisper'
+          : balanceOn
+            ? 'balance'
+            : workOn
+              ? 'work'
+              : kanaOn
+                ? 'kana'
+                : 'none';
     // 配图两种形态二选一（host 判定层保证）：url 直接用那个完整地址，image 按素材根拼表情包路径。
     // 样式/class 两份共用（都在 shared 的 MEME_BUBBLE_CSS），只是 src 的来源不同。
     const whisperImg =
@@ -1885,7 +1925,7 @@ class PetSprite {
     this.bubble.classList.toggle(
       'is-whisper',
       // 余额「文字说明」（不可用状态）同样套用紧凑变体：字号更小、宽度下限更窄，多行说明更紧凑
-      slot === 'whisper' || slot === 'work' || (slot === 'balance' && this.balanceWrap),
+      slot === 'whisper' || slot === 'work' || slot === 'kana' || (slot === 'balance' && this.balanceWrap),
     );
     this.bubble.classList.toggle(S.MEME_BUBBLE_CLASS, !!whisperImg);
     // 可点/展开两个状态类：可点 → 气泡参与命中区（见 syncInputRegions）；展开 → 三窗口排版与更宽的盒
@@ -1911,6 +1951,12 @@ class PetSprite {
       const line = document.createElement('div');
       line.className = 'pet-bub-row';
       line.textContent = this.whisperView[0]?.text ?? '';
+      this.bubble.appendChild(line);
+    } else if (slot === 'kana') {
+      // 五十音小课堂：纯文本行（无配图）
+      const line = document.createElement('div');
+      line.className = 'pet-bub-row';
+      line.textContent = this.kanaText;
       this.bubble.appendChild(line);
     } else {
       // 展开态的行在这里现算：renderBubble 是只读渲染路径，不缓存（余额每轮都在变，缓存反而要同步失效）

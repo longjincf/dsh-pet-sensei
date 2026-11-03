@@ -204,6 +204,18 @@ PetSprite.prototype.showWhisper = function showWhisper(text, image, url, duratio
   }, duration ?? BUBBLE_DURATION_MS);
 };
 
+// 日语五十音小课堂：弹一句「假名 + 罗马音」对话气泡（不换动画、只说话）。
+// 独立 kana 槽、单槽最低优先级（让位余额/碎碎念/工作状态）；随机链（sprite.js playIdle）、
+// 右键菜单动画点播（sprite.js onMenuAction）与点击（sprite.js onClick）三处按概率调用。
+PetSprite.prototype.showKanaBubble = function showKanaBubble() {
+  if (Math.random() >= S.KANA_DIALOGUE_CHANCE) return;
+  const text = S.randomBubbleLine(this.kanaLines);
+  this.kanaText = text;
+  this.kanaOn = true;
+  this.renderBubble();
+  // 气泡常驻：不设自动消失定时器，直到更高优先级的气泡替换它。
+};
+
 // 余额展示（气泡 + 档位动画）：周期轮询与菜单点播共用同一展示路径，视觉/行为严格一致。
 // 两条门控分得很清楚：
 //  - 弹气泡：手动请求（manual）**无条件**弹——用户问了就得有答复，哪怕这只宠物关了 balanceEnabled、

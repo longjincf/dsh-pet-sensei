@@ -82,6 +82,34 @@ macOS 的 Safari/WKWebView 不认 webm 的 alpha 通道（会渲染黑底），�
 - **额外宠物种类（pet pack）**：在 `pet/` 自建「种类」（独立动画池 + 自己的素材），多实例共享，与主宠物严格隔离（见配置节）
 - **自定义动画**：`main-animation/webm/` 放 VP9-Alpha `.webm` 即作为新动画，优先于包内素材（macOS Safari 可再放一份同名 `.mov` 到 `main-animation/mov/`，会被自动优先使用）
 
+## 🆕 台词文件（可自定义随机气泡）· longjincf 新增
+
+> 在官方 dsh-pet 基础上新增的能力：把气泡台词从写死的内置文案改成**读取项目根目录 `learningTxt.txt`、随机逐行显示**，内容可自由替换；并加了双击查余额、设置页快捷入口与路径脱敏。
+
+### 功能
+
+- **随机台词气泡**：宠物播随机动画、被**左键点击**、或**右键点播动画**时，按概率冒一个气泡，内容是 `learningTxt.txt` 里**随机一行**。三处共用同一概率（`KANA_DIALOGUE_CHANCE`，默认 `0.7` = 70%）
+- **台词文件**：项目根目录 `learningTxt.txt`，**一行一条**，直接改成任意文字即换内容（默认内置五十音清音：平假名 + 片假名各 46 字，每行「假名 罗马音」，如 `あ a`、`し shi`、`つ tsu`、`ン n`）
+- **气泡常驻**：台词气泡**不自动消失**，一直挂着直到被更高优先级气泡替换。单槽优先级：`终态任务 > 碎碎念/对话 > 余额 > 非终态任务 > 台词文件`（台词文件最低，余额/碎碎念/工作状态出现时让位，消失后再回来）
+- **双击查余额**：双击宠物 = 查看余额（与右键菜单「查看余额」同一动作）
+- **设置页入口**：`设置 → 桌宠配置`，页面**顶部**新增「台词文件」卡片，点「打开台词文件」用**系统默认编辑器**打开 `learningTxt.txt`（macOS `open` / Windows `start` / Linux `xdg-open`）
+- **路径脱敏**：设置页「高级配置 / 卸载与存储」里的所有路径，家目录前缀统一显示为 `~`，不再暴露真实 macOS 用户名
+
+### 台词文件与接口
+
+| 项 | 说明 |
+| --- | --- |
+| 台词文件 | 项目根目录 `learningTxt.txt`（一行一条，可任意替换内容） |
+| `GET /dsh-pet-7340/learningTxt` | 返回台词文件原文（浏览器 / 桌面端启动时拉取，随机抽行显示；文件缺失回退内置五十音） |
+| `POST /dsh-pet-7340/learningTxt` | 用系统默认编辑器打开台词文件 |
+
+### 源码改动位置（维护者）
+
+- 数据与随机抽行：`src/shared/kana.ts`（`KANA_ROWS` / `randomBubbleLine` / `DEFAULT_KANA_LINES` / `KANA_DIALOGUE_CHANCE`）
+- 台词路由：`src/host/index.ts`（`GET/POST /learningTxt` + `maskHome`）
+- 浏览器端：`src/client/pet.ts`（`showKanaBubble` 触发 / 气泡单槽最低优先级 / 双击查余额）、`src/client/settings.ts`（「台词文件」卡片）
+- 桌面端：`runtime/electron-helper/`（`sprite.js` / `events.js` / `shared-core.js`）
+
 ## 🪟 桌面模式（脱离浏览器，可选）
 
 默认情况下宠物住在 DSH 网页里（浏览器 overlay）。安装后还会**自动拉起一个脱离浏览器的桌面形态**：
@@ -301,5 +329,5 @@ AI 生成动画的配方     源视频 → 透明动画的管线    运行在 DS
 
 ## 📄 许可
 
-- 代码：MIT
+- 代码：MIT（原项目 © PC2005-cloud；本仓库新增的「台词文件 / 双击查余额 / 路径脱敏」等改动 © longjincf，同样按 MIT 许可分发）
 - 素材（动画/提示词/源视频）：允许开源使用，**禁止商用**

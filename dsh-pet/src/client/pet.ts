@@ -14,6 +14,7 @@ import {
   nextWorkStatusAnim,
 } from '../shared/pickers';
 import { planMove } from '../shared/motion';
+import { randomBubbleLine, KANA_DIALOGUE_CHANCE } from '../shared/kana';
 import { flattenConfigPets, isWebVisible } from '../shared/config';
 import { balanceEventIndex, balancePercent, decideBalanceNotice, type BalanceState } from '../shared/balance';
 // 轮询统一状态 S：前端唯一的数据来源与渲染入口（拉取 / 拍平 / 比对都在 shared，两端同一份）
@@ -300,6 +301,9 @@ export function makePetUI(rt: {
     const [whisperImage, setWhisperImage] = useState<string | undefined>(undefined);
     /** 配图的 url 形态（第三方自带地址；与 whisperImage 二选一，见 triggerWhisper） */
     const [whisperUrl, setWhisperUrl] = useState<string | undefined>(undefined);
+    // 五十音小课堂气泡：单槽最低优先级（让位余额/碎碎念/工作状态），常驻不自动消失
+    const [kanaBubbleOn, setKanaBubbleOn] = useState(false);
+    const [kanaText, setKanaText] = useState('');
     // 工作状态气泡：DSH 会话状态联动（workStatusEnabled 开启时）——终态 10s 自动收起、非终态常驻
     const [workBubbleOn, setWorkBubbleOn] = useState(false);
     const workBubbleTimerRef = useRef<number | null>(null);
@@ -954,6 +958,40 @@ export function makePetUI(rt: {
         duration ?? BUBBLE_DURATION_MS,
       );
     };
+
+    // 台词行：从 host 的 learningTxt.txt（GET /learningTxt）读，失败/为空回退内置五十音。
+    const kanaLinesRef = useRef<string[] | null>(null);
+    useEffect(() => {
+      let alive = true;
+      void fetch('/dsh-pet-7340/learningTxt')
+        .then(async (r) => {
+          if (!r.ok) return null;
+          const t = await r.text();
+          return t
+            .split(/\r?\n/)
+            .map((s) => s.trim())
+            .filter((s) => s !== '');
+        })
+        .then((lines) => {
+          if (alive && lines && lines.length > 0) kanaLinesRef.current = lines;
+        })
+        .catch(() => {
+          /* 拿不到就留在内置回退 */
+        });
+      return () => {
+        alive = false;
+      };
+    }, []);
+
+    // 日语五十音小课堂：弹一句台词气泡（不换动画、只说话）。内容 = learningTxt.txt 随机一行（可替换），
+    // 回退到内置五十音；与碎碎念/对话共用同一个说话气泡槽；随机链/右键/点击三处按概率调用。
+    const showKanaBubble = () => {
+      if (Math.random() >= KANA_DIALOGUE_CHANCE) return;
+      const text = randomBubbleLine(kanaLinesRef.current ?? undefined);
+      setKanaText(text);
+      setKanaBubbleOn(true);
+    };
+
     useEffect(() => {
       const onResize = () => setCustomPos((prev) => (prev ? { ...prev } : prev));
       window.addEventListener('resize', onResize);
@@ -1015,6 +1053,7 @@ export function makePetUI(rt: {
           '] ' +
           next,
       );
+      showKanaBubble();
       setOnce(true);
       setSeq((s) => s + 1);
     };
@@ -1947,6 +1986,8 @@ export function makePetUI(rt: {
       stopThrow(); // 点击飞行中的宠物 = 收手停住（再播点击回应）
       stopMove();
       setOnce(true);
+      // 点一下就冒一句五十音对话气泡（与随机链/右键共用 showKanaBubble）
+      showKanaBubble();
       if (!petAnims.clicks.length) return;
       const name = pick(petAnims.clicks);
       console.log('[dsh-pet] ' + new Date().toTimeString().slice(0, 8) + ' pet=' + cfg.id + ' -> [CLICK] ' + name);
@@ -1955,6 +1996,16 @@ export function makePetUI(rt: {
       // 递增 seq 强制 switchTo 走一遍（防重分支负责在动画相同时消费 Q 弹标记）
       setSeq((s) => s + 1);
       setAnim(name);
+    };
+
+    // 双击查余额：与右键菜单「查看余额」同一动作（POST /balance 让 host 刷新并写进 S）
+    const handleDoubleClick = () => {
+      console.info('[dsh-pet] 双击查看余额 pet=' + cfg.id);
+      postAction('/dsh-pet-7340/balance')
+        .then((ok: boolean) => {
+          if (!ok) console.warn('[dsh-pet] 余额刷新动作未成功 pet=' + cfg.id);
+        })
+        .catch((e: unknown) => console.warn('[dsh-pet] 余额刷新异常', e));
     };
 
     // ---- 右键菜单（统一自绘组件：树 + 渲染 + 样式与桌面共用 src/shared/menu.ts） ----
@@ -2057,6 +2108,8 @@ export function makePetUI(rt: {
         return;
       }
       if (!leaf.anim) return;
+      // 右键动画点播同样触发五十音对话（与随机链共用 showKanaBubble 与概率）
+      showKanaBubble();
       // 回执归属：这一段动画若来自第三方点播，编号要跟着这次换源一起下发（自播动画传 null，
       // 顺带把上一次的编号清掉，避免陈旧编号串到自播动画上）
       const cuePlaybackId = playbackId ?? null;
@@ -2180,6 +2233,10 @@ export function makePetUI(rt: {
       if (workBubbleOn && workText && cfg.workStatusEnabled) {
         return h(WhisperBubble, { text: workText, on: workBubbleOn });
       }
+      // 五十音小课堂：最低优先级——余额/碎碎念/工作状态都优先于它，让位后它再显示
+      if (kanaBubbleOn && kanaText) {
+        return h(WhisperBubble, { text: kanaText, on: kanaBubbleOn });
+      }
       return null;
     })();
     const commonVideoProps = { muted: true, playsInline: true, autoPlay: true };
@@ -2192,6 +2249,7 @@ export function makePetUI(rt: {
         height: ((HIT_BOX.y1 - HIT_BOX.y0) / 360) * 100 + '%',
       },
       onClick: handleClick,
+      onDoubleClick: handleDoubleClick,
       onPointerDown: handlePointerDown,
       onPointerMove: handlePointerMove,
       onPointerUp: handlePointerUp,
